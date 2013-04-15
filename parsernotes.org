@@ -1,0 +1,408 @@
+#+TITLE: parser lessons
+
+* concept : a parser generator developed with test driven, stepwise refinement
+:PROPERTIES:
+:TS: <2013-04-15 02:29AM>
+:ID: qfya82y0z2g0
+:END:
+Stepwise refinement is a top-down approach in the development process. The parser itself could be top down or bottom up or a mix.
+
+* the goal : a parser generator
+:PROPERTIES:
+:TS: <2013-04-15 02:54AM>
+:ID: jlfgm7z0z2g0
+:END:
+
+* the test : can we generate a parser for retro pascal?
+:PROPERTIES:
+:TS: <2013-04-15 02:55AM>
+:ID: cm37d8z0z2g0
+:END:
+** STEP Parse the pascal grammar, written in the grammar language
+:PROPERTIES:
+:TS: <2013-04-15 04:05AM>
+:ID: jvpdzh21z2g0
+:END:
+*** STEP tokenize the grammar description
+:PROPERTIES:
+:TS: <2013-04-15 04:24AM>
+:ID: gqiizd31z2g0
+:END:
+*** STEP parse the ebnf tokens
+:PROPERTIES:
+:TS: <2013-04-15 04:25AM>
+:ID: qpi6ge31z2g0
+:END:
+
+** STEP Analyze and simplify the grammar
+:PROPERTIES:
+:TS: <2013-04-15 04:06AM>
+:ID: 4ii6rj21z2g0
+:END:
+
+** STEP Generate the parser in the target language, according to a template
+:PROPERTIES:
+:TS: <2013-04-15 04:08AM>
+:ID: c522ul21z2g0
+:END:
+
+* parser virtual machine
+:PROPERTIES:
+:TS: <2013-04-15 04:40AM>
+:ID: jwsgp441z2g0
+:END:
+The parser would be a generic stack machine, possibly with multiple stacks, or at least the ability to mark and grow the heap. I'm thinking it would have two 'step' modes: one would chain subpatterns together with =AND=, and the other would chain them together with =OR=.
+
+For =OR= mode, the idea would be that if you don't match, you would jump to the next instruction.
+
+* countdown mode / counter register for utf8, escape sequences, etc.
+:PROPERTIES:
+:TS: <2013-04-15 06:00AM>
+:ID: ykx1gt71z2g0
+:END:
+This would be a mode like the =AND= mode and the =OR= mode that expected a certain number of characters, so it could decode UTF-8.
+
+* parser vm instruction set
+:PROPERTIES:
+:TS: <2013-04-15 04:56AM>
+:ID: hjb9ut41z2g0
+:END:
+- gosub
+- return
+- read next input token
+- set chaining rule (and, or, ...?)
+- push chaining rule and set new value (at start of subrule)
+- pop chaining rule (for use in)
+- emit output node
+- compare input char
+- escape next code (match next character)
+
+* grammar simplification system
+:PROPERTIES:
+:TS: <2013-04-15 05:38AM>
+:ID: awkess61z2g0
+:END:
+** calculate 'first' sets for all nodes
+:PROPERTIES:
+:TS: <2013-04-15 05:39AM>
+:ID: jejcit61z2g0
+:END:
+# REF: brinch hansen on pascal compilers, p 68
+first Emp         = { }
+first Lit [t:ts]  = { t }
+first Seq [p:ps]  = first p
+first Rep [p:ps]  = first p
+first Alt [p0:ps] = first p + first (Seq ps)
+
+** refactor alt-nodes to extract commonalities
+:PROPERTIES:
+:TS: <2013-04-15 06:15AM>
+:ID: k016kh81z2g0
+:END:
+
+** TODO pathological examples
+:PROPERTIES:
+:TS: <2013-04-15 06:16AM>
+:ID: pakdtj81z2g0
+:END:
+via http://stackoverflow.com/questions/6855666/finding-a-language-that-is-not-ll1
+
+: S -> A | B
+: A -> 'a' A 'b' | ε
+: B -> 'a' B 'b' 'b' | ε
+
+For this one, we'd really have to keep track of the numbers. It would come to:
+
+: match /a+/ and count the results
+: match b * count
+: match b?$ to determine A or B
+
+* tree builder instruction set
+:PROPERTIES:
+:TS: <2013-04-15 04:57AM>
+:ID: rn1dsw41z2g0
+:END:
+** NOTE . this would be an 'append'-oriented structure
+:PROPERTIES:
+:TS: <2013-04-15 05:02AM>
+:ID: hdn43551z2g0
+:END:
+
+** OPCODE (rparen) ascend : return to parent context
+:PROPERTIES:
+:TS: <2013-04-15 05:00AM>
+:ID: 5q179151z2g0
+:END:
+This would require popping something off the stack.
+
+** OPCODE (lparen) create new child list
+:PROPERTIES:
+:TS: <2013-04-15 05:00AM>
+:ID: 98o51151z2g0
+:END:
+This means allocating some new scratch ram.
+
+** OPCODE (other) append to current array
+:PROPERTIES:
+:TS: <2013-04-15 05:01AM>
+:ID: zbnab251z2g0
+:END:
+Have we reached the buffer limit? If so, enlarge buffer.
+
+* memory manager instruction set
+:PROPERTIES:
+:TS: <2013-04-15 05:09AM>
+:ID: 3rt44g51z2g0
+:END:
+** NOTE why do we need a memory manager?
+:PROPERTIES:
+:TS: <2013-04-15 05:09AM>
+:ID: jloe3h51z2g0
+:END:
+We need this because we are using multiple buffers and discarding them in the tree builder.
+
+** OPCODE =alloc( const size : int; out id : int )= : allocate new buffer
+:PROPERTIES:
+:TS: <2013-04-15 05:11AM>
+:ID: zlf33j51z2g0
+:END:
+This would allocate a buffer of /at least/ the given size.
+I'm thinking there would be a set of buffers of different sizes already
+
+** OPCODE =enlarge( const id : int )=
+:PROPERTIES:
+:TS: <2013-04-15 05:13AM>
+:ID: js2k8n51z2g0
+:END:
+This would enlarge the buffer to the next canned size.
+
+** OPCODE =reclaim( const id : int )=
+:PROPERTIES:
+:TS: <2013-04-15 05:12AM>
+:ID: su220l51z2g0
+:END:
+This would resize the buffer.
+
+** OPCODE =fetch( const id : int; out addr : pointer; out size : cardinal ) : boolean=
+:PROPERTIES:
+:TS: <2013-04-15 05:22AM>
+:ID: dgjib261z2g0
+:END:
+
+
+
+* dataflow in a parser generator
+:PROPERTIES:
+:TS: <2013-04-15 02:36AM>
+:ID: 0mn0kdy0z2g0
+:END:
+At parser generation time, we are going to build an AST for the grammar (by applying our own parser for the grammar language to the the grammar), and then generate code for the parser according to a template.
+
+* data flow in the generated parser
+:PROPERTIES:
+:TS: <2013-04-15 03:28AM>
+:ID: qymh4r01z2g0
+:END:
+When the parser runs, it will have an input stream, from which it draws tokens and produces ast nodes.
+
+* bootstrapping
+:PROPERTIES:
+:TS: <2013-04-15 02:40AM>
+:ID: urpktjy0z2g0
+:END:
+We can use the data structure we use inside the parser generator to generate a parser for the metagrammar. (The metagrammar is the language we use to describe other grammars.)
+
+The trick is simply to hand-build the data structure, and then apply the mechanisms we've already built to generate the parser.
+
+* building the AST
+:PROPERTIES:
+:TS: <2013-04-15 02:43AM>
+:ID: cu84cpy0z2g0
+:END:
+As a side effect of matching, we would build an AST structure (a nested list).
+
+* functions on pattern objects
+:PROPERTIES:
+:TS: <2013-04-15 01:12AM>
+:ID: luf0igu0z2g0
+:END:
+** =match= : Pat t -> Gen t -> Bool
+:PROPERTIES:
+:TS: <2013-04-15 01:14AM>
+:ID: ziz16lu0z2g0
+:END:
+Patterns either match a string or not, producing a boolean.
+
+** =parse= : Pat t -> Var [ Node ] -> Gen t -> Bool
+:PROPERTIES:
+:TS: <2013-04-15 01:15AM>
+:ID: vfp3klu0z2g0
+:END:
+As a side effect, patterns that match will leave an AST Node on the data stack.
+
+** =first= : Pat t -> { t } # set of t
+:PROPERTIES:
+:TS: <2013-04-15 01:07AM>
+:ID: rk6948u0z2g0
+:END:
+For any pattern, you can calculate the set of characters / tokens with which the pattern can start. For literals, this is trivial. For combinators, you just look at the children.
+
+* TYPE Pat t
+:PROPERTIES:
+:TS: <2013-04-15 01:22AM>
+:ID: z0d9mxu0z2g0
+:END: 
+** NOTE t = the token type.
+:PROPERTIES:
+:TS: <2013-04-15 02:23AM>
+:ID: y48lgrx0z2g0
+:END:
+This can be any type, but usually it would be characters or a recod type produced by the lexer. The only real requirement is that you can tell the tokens appart.
+
+** Nul
+:PROPERTIES:
+:TS: <2013-04-15 01:22AM>
+:ID: ujnjmyu0z2g0
+:END:
+This matches the empty string. it always succeeds.
+
+** Err
+:PROPERTIES:
+:TS: <2013-04-15 01:29AM>
+:ID: 4mscfav0z2g0
+:END:
+This never matches anything. (It always fails.)
+
+** Lit([ t ])
+:PROPERTIES:
+:TS: <2013-04-15 01:23AM>
+:ID: 4ip9xyu0z2g0
+:END:
+This matches a sequence of =t= values.
+** Set({ t })
+:PROPERTIES:
+:TS: <2013-04-15 02:21AM>
+:ID: i7e3hox0z2g0
+:END:
+Allow matching any of the tokens in a set.
+
+** Pred( t -> Bool )
+:PROPERTIES:
+:TS: <2013-04-15 02:25AM>
+:ID: fmj3vux0z2g0
+:END:
+This is basically like Set but would let you specify the set in terms of a predicate.
+
+** Seq([ Pat t ])
+:PROPERTIES:
+:TS: <2013-04-15 01:22AM>
+:ID: cdp3yxu0z2g0
+:END:
+This matches a sequence of patterns. It essentially splices an "AND" predicate between each pattern.
+
+** Alt( Pat t )
+:PROPERTIES:
+:TS: <2013-04-15 01:22AM>
+:ID: r6fh1yu0z2g0
+:END:
+This matches any of several alternatives. It essentially splices an "OR" between patterns.
+
+** Rep( Pat t )
+:PROPERTIES:
+:TS: <2013-04-15 01:22AM>
+:ID: 50ac9yu0z2g0
+:END:
+This is allows the pattern inside to repeat. 1..* times.
+** Opt( Pat t )
+:PROPERTIES:
+:TS: <2013-04-15 01:22AM>
+:ID: 50ac9yu0z2g0
+:END:
+This is allows the pattern inside to repeat. 0..1 times.
+
+
+* Context Operations [ for the symbol table ]
+:PROPERTIES:
+:TS: <2013-04-15 01:34AM>
+:ID: x9ckqhv0z2g0
+:END:
+** NewCtx
+:PROPERTIES:
+:TS: <2013-04-15 01:33AM>
+:ID: v35jqfv0z2g0
+:END:
+This defines a new context. Only makes sense inside a sequence.
+** EndCtx
+:PROPERTIES:
+:TS: <2013-04-15 01:33AM>
+:ID: uackyfv0z2g0
+:END:
+This discards the innermost context.
+** Def( Str, Pat t )
+:PROPERTIES:
+:TS: <2013-04-15 01:26AM>
+:ID: iaj9x3v0z2g0
+:END:
+** Ref( Str )
+:PROPERTIES:
+:TS: <2013-04-15 01:32AM>
+:ID: 6r368ev0z2g0
+:END:
+This references a named pattern defined with Def in the current context.
+** Txt
+:PROPERTIES:
+:TS: <2013-04-15 01:34AM>
+:ID: ygoepiv0z2g0
+:END:
+This refers to the last text matched.
+
+* NOTE . follow sets
+:PROPERTIES:
+:TS: <2013-04-15 01:08AM>
+:ID: dn37z9u0z2g0
+:END:
+
+* NOTE . Pattern Modifiers
+:PROPERTIES:
+:TS: <2013-04-15 12:54AM>
+:ID: 3pqh1ot0z2g0
+:END:
+
+- grouping tools
+  - '(' .. ')'
+
+- suffix modifiers:
+  - [ ',' ... ] syntax for repetition (from von thun, ch 16)
+  - ? :: pattern is optional
+  - +, +? :: 1 or more (greedy and non-greedy)
+  - *, *? :: 0 or more (greedy and non-greedy)
+
+- tree transformation suffixes
+  - ^   :: move this to this the head of the list
+  - !   :: hide this from the match
+  - ->  :: ( followed by a literal transformation)
+
+* backtracking : do we need it?
+:PROPERTIES:
+:TS: <2013-04-15 02:06AM>
+:ID: dqahszw0z2g0
+:END:
+I don't think there's any particular reason that we would need this, especially for an LL(k=1) grammar. We just need to transform the grammar.
+
+* _referential integrity between rules
+:PROPERTIES:
+:TS: <2013-04-15 02:08AM>
+:ID: cqq9g2x0z2g0
+:END:
+on Ref s p 
+  if s is defined in context, refer to the definition
+  else begin
+    allocate a slot for s in the symbol table
+    add s to the list of undefined symbols, along with note about where it is used
+  end
+on Def s p
+  associate s with the given pattern in the current scope
+  if there are references to s, explain it
+on End
+  if there are any undefined symbols, emit an error.
+
