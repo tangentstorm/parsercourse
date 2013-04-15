@@ -1,0 +1,12 @@
+# from von thun, http://nickelsworth.github.io/sympas/16-datalog.html#sec-3-1 
+
+input        = [ '+' | '-' | atom { ':-' formula } '.' | formula '.' ] .
+formula      = atom { ',' formula } .
+atom         = predicate { '(' parameterlist ')' } .
+paramlist    = parameter { ',' parameterlist } .
+parameter    = variable | name .
+predicate    = l_identifier .
+name         = l_identifier .
+variable     = u_identifier .
+l_identifier = lower { alpha | digit | '_' } .
+u_identifier = upper { alpha | digit | '_' } .
